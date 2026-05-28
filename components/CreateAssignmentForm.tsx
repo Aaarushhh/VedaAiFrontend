@@ -344,7 +344,7 @@ export default function CreateAssignmentForm() {
         </div>
 
         <div className="mt-4 md:mt-6">
-          <div className="mb-2 hidden grid-cols-[1fr_28px_140px_140px] items-center gap-3 px-1 text-xs font-medium text-zinc-500 md:grid">
+          <div className="mb-2 hidden grid-cols-[minmax(0,1fr)_28px_140px_140px] items-center gap-3 px-1 text-xs font-medium text-zinc-500 md:grid">
             <span>Question Type</span>
             <span />
             <span className="text-center">No. of Questions</span>
@@ -353,13 +353,16 @@ export default function CreateAssignmentForm() {
 
           <div className="flex flex-col gap-2 md:gap-3">
             {rows.map((row, i) => (
-              <div key={i} className="rounded-lg bg-white/80 p-2 md:grid md:grid-cols-[1fr_28px_140px_140px] md:items-center md:gap-3 md:rounded-none md:bg-transparent md:p-0">
-                <div className="mb-2 flex items-center gap-2 md:mb-0 md:block">
-                  <div className="relative flex-1">
+              <div
+                key={i}
+                className="rounded-lg bg-white/80 p-2 md:grid md:grid-cols-[minmax(0,1fr)_28px_140px_140px] md:items-center md:gap-3 md:rounded-none md:bg-transparent md:p-0"
+              >
+                <div className="mb-2 flex items-center gap-2 md:contents">
+                  <div className="relative min-w-0 flex-1 md:flex-none">
                     <select
                       value={row.type}
                       onChange={(e) => updateRow(i, { type: e.target.value })}
-                      className="w-full appearance-none rounded-full border border-zinc-200 bg-white px-3 py-1.5 pr-8 text-[10px] text-zinc-800 focus:border-zinc-400 focus:outline-none md:px-4 md:py-2 md:pr-9 md:text-sm"
+                      className="w-full min-w-0 appearance-none rounded-full border border-zinc-200 bg-white px-3 py-1.5 pr-8 text-[10px] text-zinc-800 focus:border-zinc-400 focus:outline-none md:px-4 md:py-2 md:pr-9 md:text-sm"
                     >
                       {QUESTION_TYPES.map((t) => (
                         <option key={t} value={t}>
@@ -375,7 +378,7 @@ export default function CreateAssignmentForm() {
                   <button
                     type="button"
                     onClick={() => removeRow(i)}
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 md:h-7 md:w-7"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 md:h-7 md:w-7"
                     aria-label="Remove row"
                   >
                     <XIcon />
