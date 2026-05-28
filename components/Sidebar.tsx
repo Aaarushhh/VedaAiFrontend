@@ -148,6 +148,7 @@ export default function Sidebar() {
               <li key={item.label}>
                 <Link
                   href={item.href}
+                  prefetch={false}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
                     active
                       ? 'bg-zinc-100 font-medium text-zinc-900'
@@ -171,6 +172,7 @@ export default function Sidebar() {
       <div className="px-3 pb-2">
         <Link
           href="/settings"
+          prefetch={false}
           className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900"
         >
           <SettingsIcon className="h-5 w-5" />

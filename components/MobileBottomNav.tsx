@@ -69,6 +69,7 @@ export default function MobileBottomNav() {
               <Link
                 key={item.label}
                 href={item.href}
+                prefetch={false}
                 className="flex min-w-0 flex-1 flex-col items-center gap-1"
               >
                 <Icon active={active} />
