@@ -1,0 +1,21 @@
+# Mirrors local-only files so search/index tools skip them.
+# GitHub uses .gitignore for repository ignores.
+
+node_modules/
+.next/
+out/
+build/
+coverage/
+.vercel/
+.cursor/
+.turbo/
+.cache/
+.idea/
+.vscode/
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+.env*
