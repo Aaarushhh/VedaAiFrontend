@@ -8,6 +8,7 @@ import TopBar from '@/components/TopBar';
 import MobileTopBar from '@/components/MobileTopBar';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import QuestionPaper from '@/components/QuestionPaper';
+import QuestionPaperGenerating from '@/components/QuestionPaperGenerating';
 import { useAssignmentStore } from '@/store/assignmentStore';
 import { getSocket } from '@/lib/socket';
 
@@ -44,27 +45,78 @@ function extractPaper(payload: unknown): unknown | null {
 export default function AssignmentPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const assignments = useAssignmentStore((s) => s.assignments);
   const currentPaper = useAssignmentStore((s) => s.currentPaper);
+  const currentPaperAssignmentId = useAssignmentStore((s) => s.currentPaperAssignmentId);
   const isGenerating = useAssignmentStore((s) => s.isGenerating);
+  const generatingAssignmentId = useAssignmentStore((s) => s.generatingAssignmentId);
   const generationMessage = useAssignmentStore((s) => s.generationMessage);
   const [loading, setLoading] = useState(true);
+
+  const assignment = assignments.find((a) => a._id === id);
+  const waitingOnGeneration = isGenerating && generatingAssignmentId === id;
+  const pendingOnServer =
+    assignment?.status === 'pending' || assignment?.status === 'processing';
+  const paperForThisAssignment =
+    currentPaper && currentPaperAssignmentId === id ? currentPaper : null;
+  const showGeneratingView =
+    !paperForThisAssignment && (waitingOnGeneration || loading || pendingOnServer);
+
+  useEffect(() => {
+    if (!id) return;
+
+    const socket = getSocket();
+    const event = `assignment:${id}`;
+
+    const handler = (socketData: AnyRecord) => {
+      const { setCurrentPaper, updateAssignment, setIsGenerating, setGenerationMessage } =
+        useAssignmentStore.getState();
+
+      if (typeof socketData.message === 'string') {
+        setGenerationMessage(socketData.message);
+      }
+
+      const incoming = extractPaper(socketData);
+      if (incoming) {
+        setCurrentPaper(id, incoming);
+        updateAssignment(id, { status: 'completed', generatedPaper: incoming });
+        setIsGenerating(false);
+        setLoading(false);
+        return;
+      }
+
+      if (socketData.status === 'failed') {
+        setIsGenerating(false);
+        updateAssignment(id, { status: 'failed' });
+        setLoading(false);
+        toast.error('Generation failed. Please try again.');
+      }
+    };
+
+    socket.on(event, handler);
+    return () => {
+      socket.off(event, handler);
+    };
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
 
     setLoading(true);
-    const { currentPaper: existing, assignments, setCurrentPaper } =
+    const { currentPaperAssignmentId: paperId, assignments: list, setCurrentPaper, updateAssignment, setIsGenerating } =
       useAssignmentStore.getState();
 
-    if (existing) {
+    if (paperId === id) {
+      setIsGenerating(false);
       setLoading(false);
       return;
     }
 
-    const inStore = assignments.find((a) => a._id === id);
+    const inStore = list.find((a) => a._id === id);
     const cached = extractPaper(inStore);
     if (cached) {
-      setCurrentPaper(cached);
+      setCurrentPaper(id, cached);
+      setIsGenerating(false);
       setLoading(false);
       return;
     }
@@ -82,37 +134,42 @@ export default function AssignmentPage() {
         if (cancelled) return;
         const payload = res.data;
         console.log('[AssignmentPage] /api/assignments/:id response →', payload);
+
         const paper = extractPaper(payload);
         if (paper) {
-          setCurrentPaper(paper);
+          setCurrentPaper(id, paper);
+          updateAssignment(id, { status: 'completed', generatedPaper: paper });
+          setIsGenerating(false);
           setLoading(false);
           return;
         }
 
-        const status =
-          (payload as AnyRecord)?.status ??
-          ((payload as AnyRecord)?.data as AnyRecord | undefined)?.status;
+        const body = payload as AnyRecord;
+        const record = (body.data ?? body) as AnyRecord;
+        const status = record.status ?? body.status;
+
+        if (record.title || status) {
+          const patch: { title?: string; status?: 'pending' | 'processing' | 'completed' | 'failed' } =
+            {};
+          if (typeof record.title === 'string') patch.title = record.title;
+          if (status === 'pending' || status === 'processing' || status === 'completed' || status === 'failed') {
+            patch.status = status;
+          }
+          if (Object.keys(patch).length > 0) updateAssignment(id, patch);
+        }
 
         if (status === 'failed') {
+          setIsGenerating(false);
           toast.error('Generation failed for this assignment.');
           setLoading(false);
           return;
         }
 
-        const socket = getSocket();
-        socket.on(`assignment:${id}`, (socketData: AnyRecord) => {
-          if (cancelled) return;
-          const incoming = extractPaper(socketData);
-          if (incoming) {
-            setCurrentPaper(incoming);
-            setLoading(false);
-            return;
-          }
-          if (socketData?.status === 'failed') {
-            toast.error('Generation failed.');
-            setLoading(false);
-          }
-        });
+        if (status === 'completed') {
+          setIsGenerating(false);
+        }
+
+        setLoading(false);
       })
       .catch((err) => {
         console.error('Failed to fetch assignment', err);
@@ -127,33 +184,37 @@ export default function AssignmentPage() {
     };
   }, [id]);
 
+  const generatingTitle = assignment?.title;
+  const generatingMessage =
+    generationMessage ||
+    (waitingOnGeneration ? 'Generating your question paper...' : 'Loading your question paper...');
+
+  const outputContent = paperForThisAssignment ? (
+    <QuestionPaper paper={paperForThisAssignment} />
+  ) : showGeneratingView ? (
+    <QuestionPaperGenerating
+      title={generatingTitle}
+      message={generatingMessage}
+      totalQuestions={assignment?.totalQuestions}
+      totalMarks={assignment?.totalMarks}
+    />
+  ) : (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center">
+      <p className="mb-4 text-zinc-600">Paper not found.</p>
+      <button
+        onClick={() => router.push('/')}
+        className="rounded-full bg-zinc-900 px-5 py-2 text-sm text-white transition hover:bg-zinc-800"
+      >
+        Go back
+      </button>
+    </div>
+  );
+
   return (
     <>
       <div className="min-h-screen md:hidden">
         <MobileTopBar />
-        <main className="px-2 pb-24 pt-2">
-          {loading || isGenerating ? (
-            <div className="flex min-h-[60vh] flex-col items-center justify-center">
-              <div className="mb-6 h-12 w-12 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900" />
-              <h2 className="mb-2 text-base font-semibold text-zinc-800">
-                {generationMessage || 'Loading your question paper...'}
-              </h2>
-              <p className="text-xs text-zinc-500">This may take a few seconds</p>
-            </div>
-          ) : currentPaper ? (
-            <QuestionPaper paper={currentPaper} />
-          ) : (
-            <div className="flex min-h-[60vh] flex-col items-center justify-center">
-              <p className="mb-4 text-zinc-600">Paper not found.</p>
-              <button
-                onClick={() => router.push('/')}
-                className="rounded-full bg-zinc-900 px-5 py-2 text-sm text-white transition hover:bg-zinc-800"
-              >
-                Go back
-              </button>
-            </div>
-          )}
-        </main>
+        <main className="px-2 pb-24 pt-2">{outputContent}</main>
         <MobileBottomNav />
       </div>
 
@@ -161,29 +222,7 @@ export default function AssignmentPage() {
         <Sidebar />
         <div className="ml-[344px] mr-3 flex min-h-screen flex-1 flex-col">
           <TopBar title="Assignment Output" />
-          <main className="flex-1 py-4">
-            {loading || isGenerating ? (
-              <div className="flex min-h-[60vh] flex-col items-center justify-center">
-                <div className="mb-6 h-16 w-16 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900" />
-                <h2 className="mb-2 text-lg font-semibold text-zinc-800">
-                  {generationMessage || 'Loading your question paper...'}
-                </h2>
-                <p className="text-sm text-zinc-500">This may take a few seconds</p>
-              </div>
-            ) : currentPaper ? (
-              <QuestionPaper paper={currentPaper} />
-            ) : (
-              <div className="flex min-h-[60vh] flex-col items-center justify-center">
-                <p className="mb-4 text-zinc-600">Paper not found.</p>
-                <button
-                  onClick={() => router.push('/')}
-                  className="rounded-full bg-zinc-900 px-5 py-2 text-sm text-white transition hover:bg-zinc-800"
-                >
-                  Go back
-                </button>
-              </div>
-            )}
-          </main>
+          <main className="flex-1 py-4">{outputContent}</main>
         </div>
       </div>
     </>

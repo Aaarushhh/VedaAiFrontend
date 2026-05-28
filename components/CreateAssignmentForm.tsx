@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { useAssignmentStore } from '@/store/assignmentStore';
-import { getSocket } from '@/lib/socket';
 
 const QUESTION_TYPES = [
   'Multiple Choice Questions',
@@ -113,7 +112,8 @@ function Counter({
 
 export default function CreateAssignmentForm() {
   const router = useRouter();
-  const { addAssignment, setIsGenerating, setGenerationMessage, setCurrentPaper } = useAssignmentStore();
+  const { addAssignment, setIsGenerating, setGenerationMessage, clearCurrentPaper } =
+    useAssignmentStore();
 
   const [dueDate, setDueDate] = useState('');
   const [rows, setRows] = useState<QtRow[]>(defaultRows);
@@ -207,24 +207,12 @@ export default function CreateAssignmentForm() {
         createdAt: new Date().toISOString(),
       });
 
-      toast.success('Assignment saved', { description: `id: ${assignmentId}` });
+      toast.success('Assignment saved', { description: 'Generating your question paper…' });
 
-      setIsGenerating(true);
+      clearCurrentPaper();
+      setIsGenerating(true, assignmentId);
       setGenerationMessage('Generating your question paper...');
-
-      const socket = getSocket();
-      socket.on(`assignment:${assignmentId}`, (data: { message?: string; status?: string; data?: unknown }) => {
-        if (data.message) setGenerationMessage(data.message);
-        if (data.status === 'completed') {
-          setIsGenerating(false);
-          setCurrentPaper(data.data);
-          router.push(`/assignments/${assignmentId}`);
-        }
-        if (data.status === 'failed') {
-          setIsGenerating(false);
-          toast.error('Generation failed. Please try again.');
-        }
-      });
+      router.push(`/assignments/${assignmentId}`);
     } catch (err) {
       console.error('Failed to create assignment:', err);
       if (axios.isAxiosError(err)) {
