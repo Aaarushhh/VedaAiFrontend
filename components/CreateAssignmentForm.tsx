@@ -155,11 +155,11 @@ export default function CreateAssignmentForm() {
       return;
     }
 
-    const apiBase = process.env.NEXT_PUBLIC_API_URL;
-    if (!apiBase) {
-      console.warn('NEXT_PUBLIC_API_URL is not set. Skipping API call.');
-      toast.success('Form is valid. No backend configured yet.', {
-        description: `Would submit ${totalQuestions} questions / ${totalMarks} marks`,
+    const apiBase = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/$/, '');
+    if (!apiBase || !/^https?:\/\//i.test(apiBase)) {
+      toast.error('Backend URL is not configured', {
+        description:
+          'Set NEXT_PUBLIC_API_URL in .env.local to https://vedaaibackend-e2vi.onrender.com and restart npm run dev.',
       });
       return;
     }
